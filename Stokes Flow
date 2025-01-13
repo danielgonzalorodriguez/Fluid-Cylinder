@@ -1,0 +1,85 @@
+real[int] colorhsv=[
+0.666666666666667, 1, 0.750000000000000,
+0.666666666666667, 1, 1,
+0.625000000000000, 1, 1,
+0.583333333333333, 1, 1,
+0.541666666666667, 1, 1,
+0.500000000000000, 1, 1,
+0.444444444444444, 0.750000000000000, 1,
+0.333333333333333, 0.500000000000000, 1,
+0.222222222222222, 0.750000000000000, 1,
+0.166666666666667, 1, 1,
+0.125000000000000, 1, 1,
+0.0833333333333333, 1, 1,
+0.0416666666666667, 1, 1,
+0, 1, 1,
+0, 1, 0.750000000000000,
+0, 1, 0.500000000000000];
+
+
+real Fy, Fx;
+real alpha = pi/180 * 0;
+func r = sqrt(x^2 + y^2);
+ofstream ff1("coeficientes_po200_Ossen.txt");
+real diametro = 1;
+real xmax = 200, ymax= 200;
+real xmaxprima=xmax/diametro, ymaxprima=ymax/diametro, diametroprima=1;
+real x0=-xmaxprima, x1=xmaxprima, y0=-ymaxprima, y1=ymaxprima;
+real hmax = xmax/50, hmin= diametro/10; //hmin= diametro/100;
+
+
+	
+	// GEOMETRÍA
+	
+	border Sext1(t = 0, 1) { x = x0 + t*(x1-x0); y = y0;label = 1;}; // walls
+	border Sext2(t = 0, 1) { x = x1; y = y0 + t*(y1-y0);label= 2;}; //outlet
+	border Sext3(t = 0, 1) { x = x1 + t*(x0-x1); y = y1;label = 5;};
+	border Sext4(t = 0, 1) { x = x0; y = y1 + t*(y0-y1);label = 3;}; //inlet
+	border Sint(t=2*pi,0){x = diametroprima/2*cos(t);y = diametroprima/2*sin(t);label = 4;};
+
+				   
+	mesh Th = buildmesh(Sext1((x1-x0)/hmax) + Sext2((y1-y0)/hmax) + Sext3((x1-x0)/hmax) + Sext4((y1-y0)/hmax) + Sint(pi*diametroprima/hmin));
+	//plot(Th, wait=1);
+
+	//FORMULACIÓN VARIACIONAL
+	fespace Vh(Th,P2); Vh ux,uy,uux,uuy,psi,T,w;
+	fespace Ph(Th,P1); Ph p,pp;
+
+	real [int] ReOssen = [1e-6,5e-6,1e-5,5e-5,1e-4,5e-4,1e-3,2e-3,5e-3,1e-2,2e-2,5e-2,1e-1,2e-1,5e-1,1,10,25,50,75,100];
+	 
+	 
+  for(int i=0; i<ReOssen.n; i++){
+		 problem ossen([ux,uy,p],[uux,uuy,pp]) =int2d(Th)(ReOssen(i)*(dx(ux)*uux+ReOssen(i)*dx(uy)*uuy))+
+		int2d(Th)(2*dx(ux)*dx(uux)+2*(dx(uy)+dy(ux))*(dx(uuy)+dy(uux))+2*dy(uy)*dy(uuy)
+		- p*dx(uux) - p*dy(uuy) + pp*(dx(ux)+dy(uy)))
+		 + on(3,ux=1,uy=0) + on(4,ux=0,uy=0);
+
+		ossen;
+		for (int i=0;i<3;i++)
+		{	
+			Th=adaptmesh(Th,ux,nbvx=20000,err=1e-2,hmax=hmax,hmin=hmin);	
+			ossen;
+		}
+		solve streamline(psi,w) =int2d(Th)(dx(psi)*dx(w)+dy(psi)*dy(w)) - int2d(Th)(dx(uy)*w - dy(ux)*w)
+		+int1d(Th,1)(ux*w) + int1d(Th,2)(uy*w) + int1d(Th,5)(-ux*w) +int1d(Th,3)(-uy*w)  + on(4,psi=0); 
+		
+		//plot(ux,nbiso=100,fill=1,hsv=colorhsv,wait=1,value=1);
+		plot(p,nbiso=100,fill=1,hsv=colorhsv,wait=1);
+		//plot([ux,uy],wait=1,fill=1,hsv=colorhsv, bb=[[-0.15,-0.25],[1.55,0.25]]);
+	
+		Fx = int1d(Th, 4)((-p + 2*dx(ux)) * (-N.x) + (dy(ux) + dx(uy)) * (-N.y));
+		Fy = int1d(Th, 4)((dy(ux) + dx(uy)) * (-N.x) + (-p + 2*dy(uy)) * (-N.y));
+
+
+		cout << "Fuerza x Ossen: " << Fx << "\t" << "Fuerza y Ossen: " << Fy << endl;
+
+		cout << "Fuerza arrastre Ossen: " << Fx * cos(alpha) + Fy * sin(alpha) << "\t" 
+			 << "Fuerza Sustentacion Ossen: " << -Fx * sin(alpha) + Fy * cos(alpha) << endl;
+		
+		ff1 << ReOssen(i) << "\t";
+		ff1 << 2*Fx/ReOssen(i) << "\t";
+		ff1 << 2*Fy/ReOssen(i) << "\t";
+		ff1 << "\n";
+		
+				  
+  }
