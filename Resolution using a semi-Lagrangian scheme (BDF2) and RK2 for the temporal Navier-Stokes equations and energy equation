@@ -1,0 +1,267 @@
+real[int] colormapHSVjet = [
+     0.6667,    1.0000,    0.5625,
+     0.6667,    1.0000,    0.6250,
+     0.6667,    1.0000,    0.6875,
+     0.6667,    1.0000,    0.7500,
+     0.6667,    1.0000,    0.8125,
+     0.6667,    1.0000,    0.8750,
+     0.6667,    1.0000,    0.9375,
+     0.6667,    1.0000,    1.0000,
+     0.6563,    1.0000,    1.0000,
+     0.6458,    1.0000,    1.0000,
+     0.6354,    1.0000,    1.0000,
+     0.6250,    1.0000,    1.0000,
+     0.6146,    1.0000,    1.0000,
+     0.6042,    1.0000,    1.0000,
+     0.5938,    1.0000,    1.0000,
+     0.5833,    1.0000,    1.0000,
+     0.5729,    1.0000,    1.0000,
+     0.5625,    1.0000,    1.0000,
+     0.5521,    1.0000,    1.0000,
+     0.5417,    1.0000,    1.0000,
+     0.5313,    1.0000,    1.0000,
+     0.5208,    1.0000,    1.0000,
+     0.5104,    1.0000,    1.0000,
+     0.5000,    1.0000,    1.0000,
+     0.4889,    0.9375,    1.0000,
+     0.4762,    0.8750,    1.0000,
+     0.4615,    0.8125,    1.0000,
+     0.4444,    0.7500,    1.0000,
+     0.4242,    0.6875,    1.0000,
+     0.4000,    0.6250,    1.0000,
+     0.3704,    0.5625,    1.0000,
+     0.3333,    0.5000,    1.0000,
+     0.2963,    0.5625,    1.0000,
+     0.2667,    0.6250,    1.0000,
+     0.2424,    0.6875,    1.0000,
+     0.2222,    0.7500,    1.0000,
+     0.2051,    0.8125,    1.0000,
+     0.1905,    0.8750,    1.0000,
+     0.1778,    0.9375,    1.0000,
+     0.1667,    1.0000,    1.0000,
+     0.1563,    1.0000,    1.0000,
+     0.1458,    1.0000,    1.0000,
+     0.1354,    1.0000,    1.0000,
+     0.1250,    1.0000,    1.0000,
+     0.1146,    1.0000,    1.0000,
+     0.1042,    1.0000,    1.0000,
+     0.0938,    1.0000,    1.0000,
+     0.0833,    1.0000,    1.0000,
+     0.0729,    1.0000,    1.0000,
+     0.0625,    1.0000,    1.0000,
+     0.0521,    1.0000,    1.0000,
+     0.0417,    1.0000,    1.0000,
+     0.0313,    1.0000,    1.0000,
+     0.0208,    1.0000,    1.0000,
+     0.0104,    1.0000,    1.0000,
+          0,    1.0000,    1.0000,
+          0,    1.0000,    0.9375,
+          0,    1.0000,    0.8750,
+          0,    1.0000,    0.8125,
+          0,    1.0000,    0.7500,
+          0,    1.0000,    0.6875,
+          0,    1.0000,    0.6250,
+          0,    1.0000,    0.5625,
+          0,    1.0000,    0.5000];
+		  
+real Fy, Fx, CL, CD;
+real alpha = pi/180 * 0;
+func r = sqrt(x^2 + y^2);
+real diametro = 1;
+real x0=0, x1=25, y0=-10, y1=10;
+real hmax = 1.5, hmin= 0.01; //hmin= diametro/100;
+real tfinal=1000;
+real Dt=0.5;
+real cont=0;
+real [int,int] A(10,4);
+real [int,int] B(10,3);
+real cdavg, nuavg;
+
+for(real Re=100;Re<=100;Re=Re+10){
+ofstream ff("Flujo Cilindro Temporal Re "+Re+".txt");
+ofstream ff2("Flujo Cilindro Nussel Temporal Re "+Re+".txt");
+// GEOMETRÍA
+	
+border Sext1(t = 0, 1) { x = x0 + t*(x1-x0); y = y0;label = 1;}; // walls
+border Sext2(t = 0, 1) { x = x1; y = y0 + t*(y1-y0);label= 2;}; //outlet
+border Sext3(t = 0, 1) { x = x1 + t*(x0-x1); y = y1;label = 3;};
+//border Sext4(t = 0, 1) { x = x0; y = y1 + t*(y0-y1);label = 4;}; //inlet
+border Sext4(t=pi/2,3*pi/2){x = 10*cos(t);y = 10*sin(t);label = 4;};
+border Sint(t=2*pi,0){x = diametro/2*cos(t);y = diametro/2*sin(t);label = 5;};
+
+				   
+mesh Th = buildmesh(Sext1((x1-x0)/hmax) + Sext2((y1-y0)/hmax) + Sext3((x1-x0)/hmax) + Sext4(pi*10/2/0.5) + Sint(pi*diametro/0.01));
+//plot(Th);
+
+
+fespace Vh2(Th,P2);
+fespace Vh1(Th,P1);
+Vh2 ux,uy,wx,wy,uxold1,uyold1,uxold2,uyold2;
+Vh2 psi,w;
+Vh1 q,p;
+
+fespace VhCD(Th,P2);
+VhCD phi,T,Told1,Told2;
+real Pr=7;
+real Q; //Potencia calorifica
+real Nu;
+
+fespace Vh0(Th,P0);
+Vh0 hk = hTriangle;
+Vh0 epsilon1;
+
+real epsilon = 1/(Pr*Re); // Pe=Pr*Re, epsilon=1/Pe
+epsilon1= max(hk,epsilon);
+
+//Esquema Runge-Kuta de orden 2.
+func Xcaract=x-0.5*Dt*(ux+uxold1(x-Dt*ux,y-Dt*uy));
+func Ycaract=y-0.5*Dt*(uy+uyold1(x-Dt*ux,y-Dt*uy));
+func Xcaract2=x-Dt*(ux+uxold2(x-2.0*Dt*ux,y-2.0*Dt*uy));
+func Ycaract2=y-Dt*(uy+uyold2(x-2.0*Dt*ux,y-2.0*Dt*uy));
+	 
+	real n=1;   
+    string filename = "Historial_CD_Re_" + Re + ".txt"; 
+	string filenameNu = "Historial_Nu_Re_" + Re + ".txt";
+    ofstream ff1(filename);
+	ofstream ff3(filenameNu);
+	real error = 1, errornu=1;
+	real sumcd = 0, sumnu = 0;
+	int count = 0;
+	real cdprev = 0, nuprev = 0;
+
+	problem navierstokes([ux,uy,p],[wx,wy,q]) = int2d(Th)(1.5*ux*wx/Dt + 1.5*uy*wy/Dt)
+											 - int2d(Th)(2.0*uxold1(Xcaract,Ycaract)*wx/Dt + 2.0*uyold1(Xcaract,Ycaract)*wy/Dt)
+											 + int2d(Th)(0.5*uxold2(Xcaract2,Ycaract2)*wx/Dt + 0.5*uyold2(Xcaract2,Ycaract2)*wy/Dt)
+											 - int2d(Th)(p*(dx(wx)+dy(wy)))
+											 - int2d(Th)(q*(dx(ux)+dy(uy))) 
+											 + int2d(Th)(1.0/Re*(dx(ux)*dx(wx)+dy(ux)*dy(wx) + dx(uy)*dx(wy)+ dy(uy)*dy(wy)))
+											 + on(5,ux=0,uy=0) + on(1,3,4,ux=cos(alpha),uy=sin(alpha))+on(2, p=0);
+			
+	problem streamline(psi,w) =int2d(Th)(dx(psi)*dx(w)+dy(psi)*dy(w)) - int2d(Th)((-dx(uy) + dy(ux))*w)- int1d(Th,1,2,3,4)((-uy*N.x+ux*N.y)*w) + on(5,psi=0); 
+
+	problem extrapvelociades([ux,uy],[wx,wy]) = int2d(Th)((ux*wx + uy*wy))- int2d(Th)((2*uxold1-uxold2)*wx + (2*uyold1-uyold2)*wy);
+	
+	problem calor(T, phi) = int2d(Th)(1.5*T*phi/Dt) - int2d(Th)(2*Told1(Xcaract,Ycaract)*phi/Dt) + int2d(Th)(0.5*Told2(Xcaract2,Ycaract2)*phi/Dt)
+                         + int2d(Th)(epsilon1*(dx(T)*dx(phi) + dy(T)*dy(phi)))  
+                         + int2d(Th)(ux*dx(T)*phi + uy*dy(T)*phi)  
+						  + on( 5, T=1) //Cilindro
+						  + on( 1,3,4, T=0); //dT/dn en 2=0 -> int1d(Th,2)=0
+
+	ux = 0;
+	uy = 0;
+	uxold1 = ux;
+	uyold1 = uy;
+	
+	T=0;
+	Told1=T;
+	
+	while ( error > 1e-3 || n*Dt<100 || errornu >1e-3) {
+		//string filename1 =  n + "_Re_" + Re +".eps";
+		uxold2 = uxold1;
+		uyold2 = uyold1;
+		uxold1 = ux;
+		uyold1 = uy;
+		
+		Told2 = Told1;
+		Told1=T;
+
+		extrapvelociades;
+		navierstokes;	
+		streamline;
+		calor;
+		for (int j=0;j<=5;j++)	{				  
+			Th=adaptmesh(Th,T,ux,uy,p,hmin=epsilon, hmax=2.5, nbvx=7500, err=4.5e-2); //hmin = epsilon crea que se llega a ese epsilon
+			hk=hTriangle;
+			epsilon1 = max(hk,epsilon);
+			calor;
+		}
+		
+
+		Fx = int1d(Th,5)((-p + 2*dx(ux)) * (-N.x) + (dy(ux) + dx(uy)) * (-N.y));
+		Fy = int1d(Th,5)((dy(ux) + dx(uy)) * (-N.x) + (-p + 2*dy(uy)) * (-N.y));
+
+		CL = 2*(-Fx * sin(alpha) + Fy * cos(alpha));
+		CD = 2*(Fx * cos(alpha) + Fy * sin(alpha));
+			
+		Q = int1d(Th,5)(dx(T)*N.x + dy(T)*N.y); // int1d()(-(dx(T)*(-N.x)+dy(T)*(-N.y)))
+		Nu = Q/(pi);
+
+		sumcd += CD;
+		sumnu+= Nu; 
+		count++;
+		if(n==50){
+			cdavg=CD;
+			nuavg=Nu;
+			error=1;
+			errornu=1;
+			cdprev = cdavg;
+			nuprev = nuavg;
+			sumcd=CD;
+			sumnu=Nu;
+			count=1;
+			cout<< "%----Correccion de CD y Nu medio----%"<<endl;
+		}
+		else{
+		cdavg = sumcd / count;
+		error = abs((cdavg - cdprev)/cdavg);
+		cdprev = cdavg;
+		
+		nuavg = sumnu / count;
+		errornu = abs((nuavg - nuprev)/nuavg);
+		nuprev = nuavg;
+		
+		}
+		cout << "Coeficiente de sustentacion = " << CL << "\t" << endl;
+		cout << "Coeficiente de arrastre = " << CD << "\t" << endl;
+		cout << "Reynolds: " << Re << endl;
+		cout << "Coeficiente de arrastre medio: " << cdavg << endl;
+		cout << "Error Cd: " << error << endl;
+		cout << "Nussel: " << Nu << endl;
+		cout << "Nussel medio: " << nuavg << endl;
+		cout << "Error Nu: " << errornu << endl;
+		cout << "Iteracion: " << n << endl;
+
+		/*if(n % 1 == 0 && n == 1){ // n*Dt<100 para Re<40
+			Th = adaptmesh(Th, T, hmin=0.001, hmax=1.5, nbvx=15000, err=1e-1);
+		}*/
+
+
+		//plot(ux,dim=2,viso=viso,fill=1,value=1,wait=0,cmm="tiempo= " + n*Dt + " seg,    Re="+Re, hsv=colormapHSVjet);
+		//plot([ux,uy],Th,dim=2,fill=0,value=1,wait=0,cmm="tiempo= " + n*Dt + " seg,    Re="+Re, hsv=colormapHSVjet, bb=[[-2, -2], [20, 2]]);
+		/*if(Re==100 && n%2==0){
+			plot([ux,uy],dim=2,fill=0,value=1,wait=0,cmm="tiempo= " + n*Dt + " seg,    Re="+Re, hsv=colormapHSVjet, bb=[[-2, -2], [20, 2]],ps=filename1);
+		}*/
+		//plot(p,dim=2,fill=0,value=1,wait=1,cmm="tiempo= " + n*Dt + " seg,	Re="+Re, hsv=colormapHSVjet);
+		plot(Th,T,dim=2,fill=1,value=1,wait=0,cmm="tiempo= " + n*Dt + " seg,	Re="+Re, hsv=colormapHSVjet);
+		n=n+1;
+		ff1 << CD << endl;
+		ff3 << Nu << endl;
+   
+        
+	}
+
+	
+	A(cont, 0) = alpha * 180 / pi;
+	A(cont, 1) = Re;
+	A(cont, 2) = cdavg;
+	A(cont, 3) = CD;
+	ff << A(cont, 0) << "\t";
+	ff << A(cont, 1) << "\t";
+	ff << A(cont, 2) << "\t";
+	ff << A(cont, 3) << "\t";
+	ff << "\n";
+	
+	B(cont, 0) = Re;
+	B(cont, 1) = Q ;
+	B(cont, 2) = Nu;
+	ff2 << Re << "\t";
+	ff2 << Q << "\t";
+	ff2 << Nu << "\t";
+	ff2 << "\n";
+ 	cont = cont + 1;					 
+
+	cout << "%--------Contador:" << cont << " Reynolds: " << Re << endl;
+	cout << "%--------SIMULACION TERMINADA-----------%" << endl;
+
+	
+}
